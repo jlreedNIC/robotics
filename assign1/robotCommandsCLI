@@ -13,5 +13,3 @@ ros2 action send_goal /create3_0620/rotate_angle irobot_create_msgs/action/Rotat
 ros2 action send_goal /create3_0620/drive_distance irobot_create_msgs/action/DriveDistance "{distance: 0.6}"
 
 ros2 action send_goal /create3_0620/dock irobot_create_msgs/action/Dock {}
-
-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
