@@ -26,6 +26,10 @@ class MyNode(Node):
     """ A class that will create a single node, and reuse a single action client, to move a robot.
     """
     def __init__(self, namespace:str):
+        """Initializes MyNode class with a given namespace. Has a single action client
+
+        :param str namespace: what the namespace of robot is
+        """
         # call superclass init
         super().__init__('walker')
 
@@ -36,6 +40,12 @@ class MyNode(Node):
         self._action_client = None
     
     def send_goal(self, action_type, action_name:str, goal):
+        """Sets the action client and sends the goal to the robot. Spins node until result callback is received.
+
+        :param action_type: Action type of the action to take
+        :param str action_name: name of action to append to namespace command
+        :param goal: goal object with necessary parameters to complete goal
+        """
         self.get_logger().info(f"Sending goal for '{action_name}'")
         # create/reuse action client with new goal info
         self._action_client = ActionClient(self, action_type, f'/{self._namespace}/{action_name}')
@@ -62,9 +72,17 @@ class MyNode(Node):
         self.get_logger().warning(f"{action_name} action done")
     
     def feedback_callback(self, feedback):
+        """Callback when getting feedback. Will print feedback
+
+        :param _type_ feedback: _description_
+        """
         self.get_logger().info(f'received feedback: {feedback}')
     
     def goal_response_callback(self, future):
+        """Callback when a response has been received. Calls get result callback.
+
+        :param _type_ future: _description_
+        """
         goal_handle = future.result()
         # print(f'goal handle: {goal_handle}')
         if not goal_handle.accepted:
@@ -75,6 +93,10 @@ class MyNode(Node):
         self.get_result_future.add_done_callback(self.get_result_callback)
     
     def get_result_callback(self, future):
+        """Prints result of goal. Sets self.result variable in order to stop spinning node.
+
+        :param _type_ future: _description_
+        """
         self.result = future.result().result
         status = future.result().status
 
