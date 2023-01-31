@@ -48,7 +48,7 @@ class MyNode(Node):
 
         # send goal
         self.undock_ac.send_goal_async(undock_goal)
-        self.get_logger().warning("robot is UNDOCKED")
+        # self.get_logger().warning("robot is UNDOCKED")
     
     def dock_robot(self):
         print("now executing dock command")
@@ -66,10 +66,57 @@ class MyNode(Node):
 
         # send goal
         self.dock_ac.send_goal_async(dock_goal)
-        self.get_logger().warning("robot is DOCKED")
+        # self.get_logger().warning("robot is DOCKED")
     
-    def drive(self):
+    def drive_robot(self, drive_dist:float):
+        print(f'starting drive command {drive_dist}m')
+
+        # wait for server
+        self.get_logger().warning("waiting for server")
+        self.drive_ac.wait_for_server()
+
+        # server avail
+        self.get_logger().warning("server available. now sending goal")
+
+        # create goal object
+        drive_goal = DriveDistance.Goal()
+        drive_goal.distance = drive_dist
+
+        # send goal
+        self.drive_ac.send_goal_async(drive_goal)
+
+        # create goal finished message?
+        self.get_logger().info("goal sent and executing")
+    
+    def rotate_robot(self, angle:float):
+        
+        # wait for server
+        self.get_logger().info("waiting for server")
+        self.rotate_ac.wait_for_server()
+
+        # server available
+        self.get_logger().info("Server AVAILABLE!")
+
+        # create goal object
+        rotate_goal = RotateAngle.Goal()
+        rotate_goal.angle = angle
+
+        # send goal (async because wayland issue??)
+        self.get_logger().info("sending goal now!")
+        self.rotate_ac.send_goal(rotate_goal)
+
+        # send complete message
+        self.get_logger().info("goal sent!")
+        
+    
+    def command(self):
+        ''' robot will drive forward 1m, turn 45deg, drive .5m, turn 135deg, drive .6m'''
         self.undock_robot()
+        self.drive_robot(1.0)
+        self.rotate_robot(3.14159/4)
+        self.drive_robot(.5)
+        self.rotate_robot(3.14159*3/4)
+        self.drive_robot(.6)
         self.dock_robot()
 
 def main():
@@ -78,7 +125,11 @@ def main():
     rclpy.init()
     node = MyNode("create3_0620")
 
-    node.drive()
+    node.command()
 
     rclpy.spin(node)
     rclpy.shutdown()
+
+if __name__ == '__main__':
+    print('code is run as python script, not package')
+    main()
