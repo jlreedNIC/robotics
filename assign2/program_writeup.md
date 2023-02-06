@@ -1,0 +1,66 @@
+# Random Walk program layout
+
+## Block Diagram
+
+## Algorithms
+
+### random_walk()
+```python
+if counter less than 20:
+    start_walking()
+else:
+    go_home()
+    dock()
+```
+
+### start_walking()
+```python
+while counter less than 20:
+    rotate random direction
+        spin(node)
+    move forward .75 meters
+        spin(node)
+    counter++
+```
+
+### feedback_callback()
+```python
+update (x,y) position
+update isHome
+if crash_detected:
+    crash_detected_callback()
+```
+
+### crash_detected_callback()
+```python
+cancel_current_goal()
+
+rotate 180 degrees
+    spin(node)
+move forward .5m
+    spin(node)
+
+'''instead of initiating random walk again, would it be easier to turn 90 degrees and try again?'''
+if counter >= 20:
+    counter = 19 # ensures robot will move out of way of obstacle when trying to go home
+
+random_walk()
+```
+
+### go_home()
+```python
+if not isHome:
+    angle = calculate direction based on position
+
+    distance = calculate meters to travel based on position # remember to subtract off a little to hit the 'sweet spot' for docking
+
+    rotate(angle)
+        spin(node)
+    move_forward(distance)
+        spin(node)
+```
+
+### dock()
+```python
+start docking
+```
