@@ -2,7 +2,7 @@
 
 ## Block Diagram
 
-![Block Diagram]("Algorithm_flowchart_example.png")
+![Block Diagram]("block_diagram.png")
 
 ## Algorithms
 
