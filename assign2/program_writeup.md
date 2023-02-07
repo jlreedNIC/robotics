@@ -2,6 +2,8 @@
 
 ## Block Diagram
 
+![Block Diagram]("Algorithm_flowchart_example.png")
+
 ## Algorithms
 
 ### random_walk()
@@ -31,6 +33,14 @@ if crash_detected:
     crash_detected_callback()
 ```
 
+### isRobotHome()
+```python
+if x < 1 and y < 1:
+    isHome = True
+else:
+    isHome = False
+```
+
 ### crash_detected_callback()
 ```python
 cancel_current_goal()
@@ -50,6 +60,9 @@ random_walk()
 ### go_home()
 ```python
 if not isHome:
+    '''might need to handle going around front of dock
+       something like if x<home.x: move in front
+       if y<home.y: move in front'''
     angle = calculate direction based on position
 
     distance = calculate meters to travel based on position # remember to subtract off a little to hit the 'sweet spot' for docking
