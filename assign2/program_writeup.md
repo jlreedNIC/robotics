@@ -28,6 +28,7 @@ while counter less than 20:
 ### feedback_callback()
 ```python
 update (x,y) position
+update rotation_direction # is this needed
 update isHome
 if crash_detected:
     crash_detected_callback()
