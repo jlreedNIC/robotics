@@ -14,7 +14,7 @@ From your dock:
 ##### Block diagram(including algorithm discussion - return to base, etc) presented to class by each person on Feb 7th
 
 ## Due dates
-Demo: Tuesday 2/21
+Demo: Tuesday 2/28
 Write-Up: Wednesday 2/22? through email to Jacob
 
 ## Write-Up requirements
