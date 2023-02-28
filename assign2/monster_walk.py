@@ -68,6 +68,9 @@ class Monster(Node):
         self.y = 0                      # y position
         self.quatz = 0                  # rotation of robot
 
+    # -------------------------------------------------------------------------
+    # generic action client and node functions
+
     def listener_callback(self, msg):
         '''
         This function is called every time self.subscription gets a message
@@ -104,8 +107,8 @@ class Monster(Node):
 
                     self.get_logger().info("Goal canceled")
 
-                    if self.counter >= 20:
-                        self.counter = 19
+                    if self.counter >= 10:
+                        self.counter = 9
 
                     print("sleeping before starting back up")
                     time.sleep(2)
@@ -192,6 +195,8 @@ class Monster(Node):
             # print(f"error: {e}")
             pass
 
+    # --------------------------------------------------------------
+
     def start_hunting(self):
         """
         runs start up then start the random walk
@@ -200,7 +205,6 @@ class Monster(Node):
         self.start_up()
         self.random_walk()
         
-
     def start_up(self):
         """
         undock and then move forward 1m
@@ -239,7 +243,6 @@ class Monster(Node):
             with lock:
                 print("in lock for incrementing counter")
                 self.counter += 1
-            pass
 
         if self.counter >= max_iter:
             # go home
@@ -251,7 +254,7 @@ class Monster(Node):
 
         try:
             goal = NavigateToPosition.Goal()
-            goal.goal_pose = PoseStamped(self.x, self.y)
+            goal.goal_pose = PoseStamped(0, .6)
             self.send_generic_goal(NavigateToPosition, "navigate_to_position", goal)
         except Exception as e:
             print(f'error with navigate: {e}')
@@ -281,14 +284,14 @@ if __name__ == '__main__':
     rclpy.init()
 
     namespace = 'create3_0620'
-    s = Monster(namespace)
+    m = Monster(namespace)
 
     # 1 thread for the Subscription, another for the Action Clients
     exec = MultiThreadedExecutor(2)
-    exec.add_node(s)
+    exec.add_node(m)
 
     keycom = KeyCommander([
-        (KeyCode(char='r'), s.start_hunting),
+        (KeyCode(char='r'), m.start_hunting),
         ])
 
     print("r: Start hunting")
@@ -299,6 +302,6 @@ if __name__ == '__main__':
         print("Shutting down executor")
         exec.shutdown()
         print("Destroying Monster Node")
-        s.destroy_node()
+        m.destroy_node()
         print("Shutting down RCLPY")
         rclpy.try_shutdown()
