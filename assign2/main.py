@@ -54,9 +54,9 @@ class Robot(Node):
         self.cb_action = MutuallyExclusiveCallbackGroup()
 
         # subscription to hazard vector and callback to look for bumper
-        # self.subscription = self.create_subscription(
-        #     HazardDetectionVector, f'/{self._namespace}/hazard_detection', 
-        #     self.listener_callback, qos_profile_sensor_data, callback_group=self.cb_sub)
+        self.subscription = self.create_subscription(
+            HazardDetectionVector, f'/{self._namespace}/hazard_detection', 
+            self.listener_callback, qos_profile_sensor_data, callback_group=self.cb_sub)
 
         self.position = {'x': 0, 'y':0}     # x,y position of robot
         self.direction = 0                  # current rotation of robot
@@ -82,7 +82,7 @@ class Robot(Node):
                 # will need to handle random_count and turn 180 and walk .75m
                 with lock:
                     self.get_logger().warning('CANCELING CURRENT GOAL')
-                    # handle = self._goal_uuid.cancel_goal_async()
+                    handle = self._goal_uuid.cancel_goal_async()
                     # print(handle.result)
 
                     # while handle is not GoalStatus.STATUS_CANCELED:
@@ -90,10 +90,10 @@ class Robot(Node):
                     # print("handle was canceled")
 
                     # loop until goal status return canceled
-                    while self._goal_uuid.status is not GoalStatus.STATUS_CANCELED:
+                    # while self._goal_uuid.status is not GoalStatus.STATUS_CANCELED:
                         # print(self._goal_uuid.status)
                         # print(f'goal status cancelled: {GoalStatus.STATUS_CANCELED}')
-                        pass
+                        # pass
                     self.get_logger().info('Goal canceled')
 
                     if self.random_count >= 20:
@@ -101,6 +101,7 @@ class Robot(Node):
                     # how to handle coordinate system?
                 
                 # back_up()
+                self.bot_crashed()
 
     def send_goal(self, action_type, action_name:str, goal):
 
@@ -117,36 +118,37 @@ class Robot(Node):
         self.get_logger().warning("Server available. Sending goal now...")
 
         # send goal in a lock and wait for send to finish
-        with lock:
-            send_goal_future = self._action_client.send_goal_async(goal) #, self.feedback_callback)
-            print(send_goal_future)
-            while not send_goal_future.done():
+        # with lock:
+        send_goal_future = self._action_client.send_goal_async(goal) #, self.feedback_callback)
+        # print(send_goal_future)
+            # while not send_goal_future.done():
                 # print(f'{send_goal_future.result()}')
-                pass
+                # pass
             
             # set goal uuid so we know we have a goal in progress
-            self._goal_uuid = send_goal_future.result() ## ISN'T THIS SOMEWHERE ELSE??
+            # self._goal_uuid = send_goal_future.result() ## ISN'T THIS SOMEWHERE ELSE??
             # print(self._goal_uuid)
         
-        while self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
+        # while self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
             # wait until status is set to something
-            pass
+            # pass
 
         # add done callbackfor response
-        print("adding response callback")
+        # print("adding response callback")
         send_goal_future.add_done_callback(self.goal_response_callback)
 
         # spin node until goal completed
         self.result = None
         while self.result == None:
-            print("still spinning node")
+            # print("still spinning node")
             rclpy.spin_once(self)
             # rclpy.spin_once(self, exec)
             # exec.spin_once()
         
         # reset goal uuid to none after action is completed
-        with lock:
-            self._goal_uuid = None
+        # with lock:
+        # print("reset goal uuid")
+        self._goal_uuid = None
 
         # goal completed
         self.get_logger().warning(f"{action_name} action done")
@@ -168,18 +170,20 @@ class Robot(Node):
 
         :param _type_ future: _description_
         """
-        print("received response from node, setting uuid...")
+        # print("received response from node, setting uuid...")
         goal_handle = future.result()
         # print(goal_handle)
 
-        with lock:
-            self._goal_uuid = goal_handle
-            print(self._goal_uuid)
+        # with lock:
+        # print("setting goal uuid")
+        self._goal_uuid = goal_handle
+        print(self._goal_uuid)
 
         if not goal_handle.accepted:
             self.get_logger().error("GOAL REJECTED")
             self.result = "rejected"
             return
+        
         
         get_result_future = goal_handle.get_result_async()
         print("get result!")
@@ -188,7 +192,7 @@ class Robot(Node):
     
     def get_result_callback(self, future):
 
-        print("goal has now completed, and getting result")
+        # print("goal has now completed, and getting result")
         self.result = future.result().result
         status = future.result().status
 
@@ -236,14 +240,14 @@ class Robot(Node):
         self.send_goal(DriveDistance, 'drive_distance', cur_goal)
 
     def random_walk(self):
-        if self.random_count < 20:
+        if self.random_count < 5:
             self.start_walking()
         else:
             print("bot is ready to go home")
             self.go_home()
     
     def start_walking(self):
-        while self.random_count < 20:
+        while self.random_count < 5:
             print(f'in random walk loop counter: {self.random_count}')
 
             # rotate random
@@ -258,8 +262,8 @@ class Robot(Node):
             cur_goal.distance = .75
             self.send_goal(DriveDistance, 'drive_distance', cur_goal)
             
-            with lock: # put in lock because accessing self.counter??
-                self.random_count += 1
+            # with lock: # put in lock because accessing self.counter??
+            self.random_count += 1
     
     def go_home(self):
         print("robot is supposed to be going home, but it doesn't know how to do that yet")
@@ -271,8 +275,8 @@ class Robot(Node):
         # cur_goal.distance = 1.0
         # self.send_goal(DriveDistance, 'drive_distance', cur_goal)
 
-        cur_goal = Dock.Goal()
-        self.send_goal(Dock, 'dock', cur_goal)
+        # cur_goal = Dock.Goal()
+        # self.send_goal(Dock, 'dock', cur_goal)
 
     def start(self):
 
@@ -289,19 +293,23 @@ class Robot(Node):
 
 def main():
     rclpy.init()
-    bot = Robot("create3_0620")
+    
+    dans = "create3_05B9"
+    mine = "create3_0620"
+
+    bot = Robot(dans)
 
     # exec = MultiThreadedExecutor(2) # defines number of threads
     # exec.add_node(bot)
     
 
-    print(f"goal aborted: {GoalStatus.STATUS_ABORTED}")
-    print(f"goal accepted: {GoalStatus.STATUS_ACCEPTED}")
-    print(f"goal canceled: {GoalStatus.STATUS_CANCELED}")
-    print(f"goal canceling: {GoalStatus.STATUS_CANCELING}")
-    print(f"goal executing: {GoalStatus.STATUS_EXECUTING}")
-    print(f"goal succeeded: {GoalStatus.STATUS_SUCCEEDED}")
-    print(f"goal unkown: {GoalStatus.STATUS_UNKNOWN}")
+    # print(f"goal aborted: {GoalStatus.STATUS_ABORTED}")
+    # print(f"goal accepted: {GoalStatus.STATUS_ACCEPTED}")
+    # print(f"goal canceled: {GoalStatus.STATUS_CANCELED}")
+    # print(f"goal canceling: {GoalStatus.STATUS_CANCELING}")
+    # print(f"goal executing: {GoalStatus.STATUS_EXECUTING}")
+    # print(f"goal succeeded: {GoalStatus.STATUS_SUCCEEDED}")
+    # print(f"goal unkown: {GoalStatus.STATUS_UNKNOWN}")
 
     bot.start()
 
