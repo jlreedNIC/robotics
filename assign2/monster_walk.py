@@ -18,6 +18,7 @@
 
 import rclpy
 from rclpy.node import Node
+
 from rclpy.action.client import ActionClient
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup
@@ -47,6 +48,17 @@ class Monster(Node):
     def __init__(self, namespace):
         super().__init__('monster_hunting')
 
+        try:
+            # from rclpy import Parameter
+            pname = f"/{namespace}/reflexes_enabled"
+            self.declare_parameter(pname, False)
+            # print(self.get_parameter(pname).get_parameter_value())
+            # p = Parameter(name="reflexes_enabled", value=False)
+            # self.set_parameters([p])
+            # self.get_parameter(f'/{namespace}/reflexes_enabled')
+            # self.set_parameters(['reflexes_enabled', False])
+        except Exception as e:
+            print(f"error {e}")
         # 2 Seperate Callback Groups for handling the bumper Subscription and Action Clients
         cb_Subscripion = MutuallyExclusiveCallbackGroup()
         #cb_Action = cb_Subscripion
@@ -67,6 +79,7 @@ class Monster(Node):
         self.x = 0                      # x position
         self.y = 0                      # y position
         self.quatz = 0                  # rotation of robot
+        self.max_iter = 5
 
     # -------------------------------------------------------------------------
     # generic action client and node functions
@@ -107,8 +120,8 @@ class Monster(Node):
 
                     self.get_logger().info("Goal canceled")
 
-                    if self.counter >= 10:
-                        self.counter = 9
+                    if self.counter >= self.max_iter:
+                        self.counter = self.max_iter-1
 
                     print("sleeping before starting back up")
                     time.sleep(2)
@@ -145,7 +158,7 @@ class Monster(Node):
             # set goal uuid so we know we have a goal in progress
             self._goal_uuid = send_goal_future.result()
             
-        while self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
+        while self._goal_uuidis is not None and self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
             # wait until status is set to something
             pass
 
@@ -159,9 +172,12 @@ class Monster(Node):
         # print(self._goal_uuid.status)
 
         # get result object for positioning
-        get_result_future = self._goal_uuid.get_result_async()
-        print("get result!")
-        get_result_future.add_done_callback(self.get_result_callback)
+        try:
+            get_result_future = self._goal_uuid.get_result_async()
+            print("get result!")
+            get_result_future.add_done_callback(self.get_result_callback)
+        except Exception as e:
+            print("error getting result: {e}")
         
         # reset goal uuid to none after action is completed
         with lock:
@@ -177,8 +193,11 @@ class Monster(Node):
 
         :param future: future passed in for get result
         """
-        # print("goal has now completed, and getting result")
-        result = future.result().result
+        try:
+            # print("goal has now completed, and getting result")
+            result = future.result().result
+        except Exception as e:
+            print("no result: {e}")
 
         # get updated position and rotation
         try:
@@ -202,8 +221,10 @@ class Monster(Node):
         runs start up then start the random walk
         """
 
-        self.start_up()
+        # self.start_up()
         self.random_walk()
+
+        self.go_home()
         
     def start_up(self):
         """
@@ -223,8 +244,8 @@ class Monster(Node):
         robot goes through loop of : rotate random angle, move forward .75m. 
         If 10 iterations have been done, go home
         """
-        max_iter = 10
-        while self.counter < max_iter:
+        # max_iter = 3
+        while self.counter < self.max_iter:
             print(f'in random walk loop counter: {self.counter}')
 
             # rotate random
@@ -243,19 +264,33 @@ class Monster(Node):
             with lock:
                 print("in lock for incrementing counter")
                 self.counter += 1
+            
+            time.sleep(1)
 
-        if self.counter >= max_iter:
+        if self.counter >= self.max_iter:
             # go home
             print("monster is ready to go home now")
             self.go_home()
     
     def go_home(self):
         print("monster is looking for home")
+        print(f"current loc: ({self.x}, {self.y})")
 
         try:
-            goal = NavigateToPosition.Goal()
-            goal.goal_pose = PoseStamped(0, .6)
-            self.send_generic_goal(NavigateToPosition, "navigate_to_position", goal)
+            angle = math.atan(abs(self.x)/(abs(self.y)-.6))
+            distance = abs(self.x)/math.cos(angle)
+
+            goal = RotateAngle.Goal()
+            goal.angle = angle
+            self.send_generic_goal(RotateAngle, "rotate_angle", goal)
+
+            goal = DriveDistance.Goal()
+            goal.distance = distance
+            self.send_generic_goal(DriveDistance, "drive_distance", goal)
+
+            # goal = NavigateToPosition.Goal()
+            # goal.goal_pose = PoseStamped.pose(0,.6)
+            # self.send_generic_goal(NavigateToPosition, "navigate_to_position", goal)
         except Exception as e:
             print(f'error with navigate: {e}')
 
