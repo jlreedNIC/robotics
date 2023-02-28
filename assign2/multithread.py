@@ -1,3 +1,21 @@
+#----------------------------------------
+#
+# @file     main.py
+# @author   Jordan Reed
+# @date     2/12/23 & 2/27/23
+# @class    Robotics
+#
+# @desc     This program will send goals to the Create3 robot so the 
+#           robot will do a random walk, handle bump responses, and return back 
+#           to it's base.
+#
+#           This iteration is based off of Jacob's code in that it uses keyboard
+#           input to start the program. The previous iteration was having problems
+#           in multiple areas - executor, spinning, etc
+#
+# ------------------------------------------
+
+
 import rclpy
 from rclpy.node import Node
 from rclpy.action.client import ActionClient
@@ -21,7 +39,7 @@ import random, math, time
 # To help with Multithreading
 lock = Lock()
 
-class Slash(Node):
+class Monster(Node):
     """
     Class to coordinate actions and subscriptions
     """
@@ -38,18 +56,17 @@ class Slash(Node):
         self.subscription = self.create_subscription(
             HazardDetectionVector, f'/{namespace}/hazard_detection', self.listener_callback, qos_profile_sensor_data,callback_group=cb_Subscripion)
 
-        self._action_client = None
+        self._action_client = None          # reuse action client
         self._namespace = namespace
 
         # Variables
-        self._goal_uuid = None
+        self._goal_uuid = None          # for goal handling in mult. threads
 
-        # random walk counter
-        self.counter = 0
+        self.counter = 0                # for random walk iteration counting
 
-        self.x = 0
-        self.y = 0
-        self.quatz = 0
+        self.x = 0                      # x position
+        self.y = 0                      # y position
+        self.quatz = 0                  # rotation of robot
 
     def listener_callback(self, msg):
         '''
@@ -72,6 +89,7 @@ class Slash(Node):
         for detection in msg.detections:
             if detection.type == 1:   #If it is a bump
                 self.get_logger().warning('HAZARD DETECTED')
+
                 with lock: # Make this the only thing happening
                     self.get_logger().warning('CANCELING GOAL')           
                     self._goal_uuid.cancel_goal_async()
@@ -79,49 +97,30 @@ class Slash(Node):
                     # Loop until the goal status returns canceled
                     print("entering loop while not canceled")
                     print(f"status: {self._goal_uuid.status} canceled: {GoalStatus.STATUS_CANCELED}")
+
                     while self._goal_uuid.status is not GoalStatus.STATUS_CANCELED and self._goal_uuid.status is not None:
                         print("goal not canceled yet")
                         pass
-                    # else:
-                    #     while self._goal_uuid is not None:
-                    #         pass  
-                    print('Goal canceled.')
+
+                    self.get_logger().info("Goal canceled")
+
+                    if self.counter >= 20:
+                        self.counter = 19
 
                     print("sleeping before starting back up")
                     time.sleep(2)
                 
+                print("calling back up sequence")
                 self.back_up()
 
-
-#--------------------Async send goal calls-----------------------------
-    def sendDriveGoal(self,goal):
-        """
-        Sends a drive goal asynchronously and 'blocks' until the goal is complete
-        """
-        
-        with lock:
-            drive_handle = self._drive_ac.send_goal_async(goal)
-            while not drive_handle.done():
-                pass # Wait for Action Server to accept goal
-            
-            # Hold ID in case we need to cancel it
-            self._goal_uuid = drive_handle.result() 
-
-        while self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
-            pass # Wait until a Status has been assigned
-
-        # After getting goalID, Loop while the goal is currently running
-        while self._goal_uuid.status is not GoalStatus.STATUS_SUCCEEDED:
-            if self._goal_uuid.status is GoalStatus.STATUS_CANCELED:
-                break # If the goal was canceled, stop looping otherwise loop till finished
-            pass
-        
-        with lock:
-            # Reset the goal ID, nothing should be running
-            self._goal_uuid = None 
-
     def send_generic_goal(self, action_type, action_name:str, goal):
+        """
+        function to send any goal async
 
+        :param action_type: imported from irobot_create_messages
+        :param action_name: string that is used with namespace
+        :param goal: the goal object for action
+        """
         print("\n")
         self.get_logger().info(f"Sending goal for '{action_name}'")
         # create action client with goal info
@@ -143,11 +142,11 @@ class Slash(Node):
             # set goal uuid so we know we have a goal in progress
             self._goal_uuid = send_goal_future.result()
             
-        self.get_logger().warning("Goal is in progress")
         while self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
             # wait until status is set to something
             pass
 
+        self.get_logger().warning("Goal is in progress")
         while self._goal_uuid.status is not GoalStatus.STATUS_SUCCEEDED:
             if self._goal_uuid.status is GoalStatus.STATUS_CANCELED:
                 break # If the goal was canceled, stop looping otherwise loop till finished
@@ -156,6 +155,7 @@ class Slash(Node):
         self.get_logger().info("Goal completed!")
         # print(self._goal_uuid.status)
 
+        # get result object for positioning
         get_result_future = self._goal_uuid.get_result_async()
         print("get result!")
         get_result_future.add_done_callback(self.get_result_callback)
@@ -167,33 +167,24 @@ class Slash(Node):
 
         # goal completed
         self.get_logger().warning(f"{action_name} action done")
-
         
     def get_result_callback(self, future):
+        """
+        a callback that will grab the position out of the result
 
+        :param future: future passed in for get result
+        """
         # print("goal has now completed, and getting result")
         result = future.result().result
-        status = future.result().status
 
         # get updated position and rotation
         try:
             # pos = DriveDistance.Result.pose
             pos = result.pose
-            x = pos.pose.position.x # needed
-            y = pos.pose.position.y # needed
-            z = pos.pose.position.z
+            self.x = pos.pose.position.x # needed
+            self.y = pos.pose.position.y # needed
 
-            self.x = x
-            self.y = y
-            # self.position['x'] = x
-            # self.position['y'] = y
-
-            quat_x = pos.pose.orientation.x
-            quat_y = pos.pose.orientation.y
-            quat_z = pos.pose.orientation.z # needed
-            quat_w = pos.pose.orientation.w
-
-            self.quatz = quat_z
+            self.quatz = pos.pose.orientation.z # needed
 
             print(f'current position: ({self.x:.3f}, {self.y:.3f}')
             print(f'current rotation: ({self.quatz:.3f})')
@@ -201,17 +192,9 @@ class Slash(Node):
             # print(f"error: {e}")
             pass
 
-        if status == GoalStatus.STATUS_SUCCEEDED:
-            self.get_logger().info("Goal Succeeded! Result info hidden.")
-            print(status)
-        else:
-            self.get_logger().error(f"Goal Failed with status: {status}")
-#----------------------------------------------------------------------
-
-
-    def drive_away(self):
+    def start_hunting(self):
         """
-        Undocks robot and drives out a meter asynchronously
+        runs start up then start the random walk
         """
 
         self.start_up()
@@ -219,15 +202,12 @@ class Slash(Node):
         
 
     def start_up(self):
+        """
+        undock and then move forward 1m
+        """
         # undock
         goal = Undock.Goal()
         self.send_generic_goal(Undock, 'undock', goal)
-        # undock_ac = ActionClient(self, Undock, f'/{self._namespace}/undock', callback_group=self.cb_action)
-        # self.get_logger().warning("waiting for server")
-        # undock_ac.wait_for_server()
-        # self.get_logger().warning("sending goal")
-        # undock_ac.send_goal(goal)
-        # self.get_logger().info("UNDOCKED")
 
         # drive forward 1m
         goal = DriveDistance.Goal()
@@ -235,9 +215,11 @@ class Slash(Node):
         self.send_generic_goal(DriveDistance, 'drive_distance', goal)
     
     def random_walk(self):
-        max_iter = 3
-        # if self.counter < max_iter:
-            # do random
+        """
+        robot goes through loop of : rotate random angle, move forward .75m. 
+        If 10 iterations have been done, go home
+        """
+        max_iter = 10
         while self.counter < max_iter:
             print(f'in random walk loop counter: {self.counter}')
 
@@ -263,7 +245,6 @@ class Slash(Node):
             # go home
             print("monster is ready to go home now")
             self.go_home()
-            pass
     
     def go_home(self):
         print("monster is looking for home")
@@ -279,6 +260,10 @@ class Slash(Node):
         self.send_generic_goal(Dock, 'dock', goal)
 
     def back_up(self):
+        """
+        called in the cancel callback
+        rotate 180 deg and move .75m to go backward
+        """
         self.get_logger().info('Starting back up process...')
 
         # rotate 180 deg
@@ -296,24 +281,24 @@ if __name__ == '__main__':
     rclpy.init()
 
     namespace = 'create3_0620'
-    s = Slash(namespace)
+    s = Monster(namespace)
 
     # 1 thread for the Subscription, another for the Action Clients
     exec = MultiThreadedExecutor(2)
     exec.add_node(s)
 
     keycom = KeyCommander([
-        (KeyCode(char='r'), s.drive_away),
+        (KeyCode(char='r'), s.start_hunting),
         ])
 
-    print("r: Start drive_away")
+    print("r: Start hunting")
     try:
         exec.spin() # execute slash callbacks until shutdown or destroy is called
     except KeyboardInterrupt:
         print('KeyboardInterrupt, shutting down.')
         print("Shutting down executor")
         exec.shutdown()
-        print("Destroying Node")
+        print("Destroying Monster Node")
         s.destroy_node()
         print("Shutting down RCLPY")
         rclpy.try_shutdown()
