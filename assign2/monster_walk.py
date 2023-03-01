@@ -31,14 +31,14 @@ from irobot_create_msgs.msg import HazardDetectionVector
 
 from pynput.keyboard import KeyCode
 from key_commander import KeyCommander
-from threading import Lock
+from threading import RLock
 from rclpy.executors import MultiThreadedExecutor
 
 import random, math, time
 
 
 # To help with Multithreading
-lock = Lock()
+lock = RLock()
 
 class Monster(Node):
     """
@@ -48,17 +48,6 @@ class Monster(Node):
     def __init__(self, namespace):
         super().__init__('monster_hunting')
 
-        try:
-            # from rclpy import Parameter
-            pname = f"/{namespace}/reflexes_enabled"
-            self.declare_parameter(pname, False)
-            # print(self.get_parameter(pname).get_parameter_value())
-            # p = Parameter(name="reflexes_enabled", value=False)
-            # self.set_parameters([p])
-            # self.get_parameter(f'/{namespace}/reflexes_enabled')
-            # self.set_parameters(['reflexes_enabled', False])
-        except Exception as e:
-            print(f"error {e}")
         # 2 Seperate Callback Groups for handling the bumper Subscription and Action Clients
         cb_Subscripion = MutuallyExclusiveCallbackGroup()
         #cb_Action = cb_Subscripion
@@ -78,6 +67,8 @@ class Monster(Node):
 
         self.x = 0                      # x position
         self.y = 0                      # y position
+        self.home_x = 0                 # x pos of home
+        self.home_y = 0                 # y pos of home
         self.quatz = 0                  # rotation of robot
         self.max_iter = 5
 
@@ -221,7 +212,11 @@ class Monster(Node):
         runs start up then start the random walk
         """
 
-        # self.start_up()
+        self.start_up()
+
+        self.home_x = self.x
+        self.home_y = self.y-.4
+
         self.random_walk()
 
         self.go_home()
@@ -277,8 +272,8 @@ class Monster(Node):
         print(f"current loc: ({self.x}, {self.y})")
 
         try:
-            angle = math.atan(abs(self.x)/(abs(self.y)-.6))
-            distance = abs(self.x)/math.cos(angle)
+            angle = math.atan(abs(self.x-self.home_x)/(abs(self.y-self.home_y)))
+            distance = abs(self.x-self.home_x)/math.cos(angle)
 
             goal = RotateAngle.Goal()
             goal.angle = angle
