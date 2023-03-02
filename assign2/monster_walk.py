@@ -65,18 +65,15 @@ class Monster(Node):
         self._goal_uuid = None          # for goal handling in mult. threads
 
         self.counter = 0                # for random walk iteration counting
+        self.max_iter = 10              # maximum walk iterations
 
+        # in order to reset pose
         self._reset_pose = self.create_client( ResetPose, f'/{self._namespace}/reset_pose')
         self.req = ResetPose.Request()
 
-        self.pose = PoseStamped()
-        self.home = PoseStamped()
-        self.x = 0                      # x position
-        self.y = 0                      # y position
-        self.home_x = 0                 # x pos of home
-        self.home_y = 0                 # y pos of home
-        self.quatz = 0                  # rotation of robot
-        self.max_iter = 5
+        self.pose = PoseStamped()       # current location of robot
+        self.home = PoseStamped()       # home location of robot
+        
 
     # -------------------------------------------------------------------------
     # generic action client and node functions
@@ -101,18 +98,13 @@ class Monster(Node):
         # Other types can be gotten from HazardDetection.msg
         for detection in msg.detections:
             if detection.type == 1:   #If it is a bump
-                self.get_logger().warning('HAZARD DETECTED')
+                self.get_logger().error('HAZARD DETECTED')
 
                 with lock: # Make this the only thing happening
                     self.get_logger().warning('CANCELING GOAL')           
                     self._goal_uuid.cancel_goal_async()
 
-                    # Loop until the goal status returns canceled
-                    print("entering loop while not canceled")
-                    print(f"status: {self._goal_uuid.status} canceled: {GoalStatus.STATUS_CANCELED}")
-
-                    while self._goal_uuid.status is not GoalStatus.STATUS_CANCELED and self._goal_uuid.status is not None:
-                        # print("goal not canceled yet")
+                    while self._goal_uuid.status is not GoalStatus.STATUS_CANCELED:
                         pass
 
                     self.get_logger().info("Goal canceled")
@@ -120,10 +112,10 @@ class Monster(Node):
                     if self.counter >= self.max_iter:
                         self.counter = self.max_iter-1
 
-                    print("sleeping before starting back up")
-                    time.sleep(2)
+                    # print("sleeping before starting back up")
+                    time.sleep(1)
                 
-                print("calling back up sequence")
+                self.get_logger().warning("Starting back up sequence")
                 self.back_up()
 
     def send_generic_goal(self, action_type, action_name:str, goal):
@@ -154,11 +146,13 @@ class Monster(Node):
             
             # set goal uuid so we know we have a goal in progress
             self._goal_uuid = send_goal_future.result()
-            
+        
+        # make sure _goal_uuid is not none before accessing status
         while self._goal_uuid is not None and self._goal_uuid.status == GoalStatus.STATUS_UNKNOWN:
             # wait until status is set to something
             pass
 
+        # make sure _goal_uuid is not none before accessing status
         self.get_logger().warning("Goal is in progress")
         while self._goal_uuid is not None and self._goal_uuid.status is not GoalStatus.STATUS_SUCCEEDED:
             if self._goal_uuid is not None and self._goal_uuid.status is GoalStatus.STATUS_CANCELED:
@@ -166,19 +160,18 @@ class Monster(Node):
             pass
 
         self.get_logger().info("Goal completed!")
-        # print(self._goal_uuid.status)
 
         # get result object for positioning
         try:
             get_result_future = self._goal_uuid.get_result_async()
-            print("get result!")
             get_result_future.add_done_callback(self.get_result_callback)
         except Exception as e:
-            print(f"error getting result: {e}")
+            # print(f"error getting result: {e}")
+            pass
         
         # reset goal uuid to none after action is completed
         with lock:
-        # print("reset goal uuid")
+            # print("reset goal uuid")
             self._goal_uuid = None
 
         # goal completed
@@ -191,26 +184,20 @@ class Monster(Node):
         :param future: future passed in for get result
         """
         try:
-            print("goal has now completed, and getting result")
+            # print("goal has now completed, and getting result")
             result = future.result().result
         except Exception as e:
-            print("no result: {e}")
+            # print("no result: {e}")
+            pass
 
         # get updated position and rotation
         try:
             # pos = DriveDistance.Result.pose
             self.pose = result.pose
-            pos = result.pose
-            self.x = pos.pose.position.x # needed
-            self.y = pos.pose.position.y # needed
-
-            self.quatz = pos.pose.orientation.z # needed
-
-            print(f'current position: ({self.x:.3f}, {self.y:.3f})')
-            print(f'current rotation: ({self.quatz:.3f})')
-            print(f'current pose: {self.pose}')
+            
+            print(f'current pose: ({self.pose.pose.position.x}, {self.pose.pose.position.y})')
         except Exception as e:
-            print(f"error getting pose: {e}")
+            # print(f"error getting pose: {e}")
             pass
 
     # --------------------------------------------------------------
@@ -225,20 +212,15 @@ class Monster(Node):
 
         try:
             get_result_future = self._goal_uuid.get_result_async()
-            print("get result!")
             get_result_future.add_done_callback(self.get_result_callback)
         except Exception as e:
-            print(f"error getting result: {e}")
+            # print(f"error getting result: {e}")
+            pass
 
-        self.home_x = self.x
-        self.home_y = self.y+.5
-        print(f'home set to ({self.home_x}, {self.home_y})')
+        
         self.home = self.pose
         self.home.pose.position.x -= .5
-        # self.home.pose.position.y += .5
         print(f'home pose set to {self.home}')
-
-        # time.sleep(2)
 
         self.random_walk()
 
@@ -250,7 +232,7 @@ class Monster(Node):
         """
 
         self._reset_pose.call(self.req) # reset pose
-        print(f'current pose: {self.pose}')
+        
         # undock
         goal = Undock.Goal()
         self.send_generic_goal(Undock, 'undock', goal)
@@ -265,7 +247,7 @@ class Monster(Node):
         robot goes through loop of : rotate random angle, move forward .75m. 
         If 10 iterations have been done, go home
         """
-        # max_iter = 3
+        
         while self.counter < self.max_iter:
             print(f'in random walk loop counter: {self.counter}')
 
@@ -283,49 +265,31 @@ class Monster(Node):
             
             # with lock: # put in lock because accessing self.counter??
             with lock:
-                print("in lock for incrementing counter")
+                # print("in lock for incrementing counter")
                 self.counter += 1
             
             time.sleep(1)
 
         if self.counter >= self.max_iter:
             # go home
-            print("monster is ready to go home now")
             self.go_home()
     
     def go_home(self):
         print("monster is looking for home")
-        print(f'home location: ({self.home_x}, {self.home_y})')
-        print(f"current loc: ({self.x}, {self.y})")
 
-        print(f'home pose: {self.home}')
-        print(f'current pose: {self.pose}')
+        print(f'home pose: ({self.home.pose.position.x}, {self.home.pose.position.y})')
+        print(f'current pose: ({self.pose.pose.position.x}, {self.pose.pose.position.y})')
 
         try:
             goal = NavigateToPosition.Goal()
             goal.goal_pose = self.home
             self.send_generic_goal(NavigateToPosition, 'navigate_to_position', goal)
-
-            # angle = math.atan(abs(self.x)/(abs(self.y-self.home_y)))
-            # distance = abs(self.x-self.home_x)/math.cos(angle)
-
-            # goal = RotateAngle.Goal()
-            # goal.angle = angle
-            # self.send_generic_goal(RotateAngle, "rotate_angle", goal)
-
-            # goal = DriveDistance.Goal()
-            # goal.distance = distance
-            # self.send_generic_goal(DriveDistance, "drive_distance", goal)
-
-            # goal = NavigateToPosition.Goal()
-            # goal.goal_pose = PoseStamped.pose(0,.6)
-            # self.send_generic_goal(NavigateToPosition, "navigate_to_position", goal)
         except Exception as e:
-            print(f'error with navigate: {e}')
+            # print(f'error with navigate: {e}')
+            pass
 
         # have to send goal synchronously
         goal = Dock.Goal()
-        # self.send_generic_goal(Dock, 'dock', goal)
         self._action_client = ActionClient(node=self, action_type=Dock, action_name=f'/{self._namespace}/dock', callback_group=self.cb_action)
         self._action_client.send_goal(goal)
 
