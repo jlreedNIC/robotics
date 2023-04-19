@@ -1,9 +1,11 @@
 
-import time
-import datetime
+# imports
 from threading import RLock
+from robodk.robolink import *           # import the robolink library
+RDK = Robolink()                        # connect to the RoboDK API (RoboDK starts if it has not started)
 
 
+# common variables - config
 mqtt_err = False
 robot_name = "dj"
 start_sync = False
@@ -16,7 +18,11 @@ except Exception as e:
     print("Error: please install 'paho.mqtt.client' module.")
     mqtt_err = True
 
-# callbacks
+# ---------------------------
+#
+# mqtt callbacks
+#
+# ---------------------------
 
 def on_connect(client, userdata, flags, rc, properties=None) :
     if rc==0:
@@ -38,18 +44,10 @@ def on_message(client, userdata, msg) :
     if msg.topic == "synchronize" and robot_name not in message_string:
         print('received message from other robot')
         with lock:
-            print('obtained lock and set start_sync')
             global start_sync
             start_sync = True
-            # print(start_sync)
-        # start_sync_func(client)
     else:
         print('received message from self')
-
-def start_sync_func(client):
-    print('executing start sync swimming')
-    print('now disconnecting')
-    client.disconnect()
 
 def on_disconnect(client, userdata, rc, properties=None) :
     if rc == paho.MQTT_ERR_SUCCESS  :
@@ -57,11 +55,11 @@ def on_disconnect(client, userdata, rc, properties=None) :
     else :
         print("Unexpected disconnect")
 
-# ---------- connecting
+# ---------- connecting to mqtt broker
 
 def connect_local_MQTT() :
     print("start connecting")
-    client_id = robot_name # put in config file
+    client_id = robot_name 
     localMQTT = paho.Client(client_id)
 
     # set up call backs
@@ -91,33 +89,55 @@ def publishMessage(topic, message) :
     new_msg = f"{clientname}: {message}"
     client.publish(topic, new_msg, qos=1)
 
+# -----------------
+#
+# robodk code
+# 
+# -----------------
 
+def start_robodk(robolink, runmode, frame_name):
+    robot = robolink.Item('', ITEM_TYPE_ROBOT)
+    robot.Connect()
+    robolink.setRunMode(runmode)
 
-def print_instr() :
-    print("\nWhat would you like to do?")
-    print(" (1) Send message \n (0) Exit \n")
+    frame = robolink.Item(frame_name, ITEM_TYPE_FRAME)
+    robot.setPoseFrame(frame)
+
+    return robot 
+
+def move_robot(robot, tgt_names, lin_speed=1500, j_speed=180, loop=1):
+    
+    for i in range(0, len(tgt_names)*loop):             # move through targets
+        robot.setSpeed(speed_linear = lin_speed, speed_joints = j_speed)                  # set speed
+        target = RDK.Item(tgt_names[i%len(tgt_names)], ITEM_TYPE_TARGET)
+        robot.MoveJ(target)
 
 #---------main program----------
+
+robot = start_robodk(RDK, RUNMODE_RUN_ROBOT, 'refPoint')
 
 if not mqtt_err:
     client = connect_local_MQTT()
     client.subscribe("#")
 
     client.loop_start()
-    start_sync = False
 
     print(f'started listening program for {robot_name}')
     
-    print(f'I just executed this movement and am now waiting')
+    # put robot code here
+    move_robot(robot, ['squat_down'], j_speed=50)
+
+    publishMessage('synchronize', 'ready')
 
     while not start_sync:
-        # client.loop_read()
-        # print(f'sync: {start_sync}')
+        # wait for other robot to be done
         pass
 
+ 
     print(f'now starting synchronized swimming program')
 
-    client.loop_stop()
-
-    # client.loop_forever()
+    # synchronized robot code here
+    move_robot(robot, ['wave_down', 'wave_up'])
     
+    client.loop_stop()
+    client.disconnect()
