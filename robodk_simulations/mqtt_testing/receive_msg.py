@@ -1,4 +1,4 @@
-
+# used for testing mqtt and multithreading
 import time
 import datetime
 from threading import RLock
@@ -35,16 +35,16 @@ def on_message(client, userdata, msg) :
     print(f'\ntopic: {msg.topic}')
     print(f'{message_string}')
 
-    if msg.topic == "synchronize" and robot_name not in message_string:
-        print('received message from other robot')
-        with lock:
-            print('obtained lock and set start_sync')
-            global start_sync
-            start_sync = True
-            # print(start_sync)
-        # start_sync_func(client)
-    else:
-        print('received message from self')
+    # if msg.topic == "synchronize" and robot_name not in message_string:
+    #     print('received message from other robot')
+    #     with lock:
+    #         print('obtained lock and set start_sync')
+    #         global start_sync
+    #         start_sync = True
+    #         # print(start_sync)
+    #     # start_sync_func(client)
+    # else:
+    #     print('received message from self')
 
 def start_sync_func(client):
     print('executing start sync swimming')
