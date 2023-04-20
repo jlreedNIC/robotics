@@ -75,9 +75,6 @@ def connect_local_MQTT() :
 
     # more callbacks
     localMQTT.on_message = on_message
-    localMQTT.on_subscribe = on_subscribe
-    localMQTT.on_disconnect = on_disconnect
-    localMQTT.on_publish = on_publish
 
     return localMQTT    
 
@@ -112,6 +109,21 @@ def move_robot(robot, tgt_names, lin_speed=1500, j_speed=180, loop=1):
         target = RDK.Item(tgt_names[i%len(tgt_names)], ITEM_TYPE_TARGET)
         robot.MoveJ(target)
 
+def wave(robot):
+    move_robot(robot, ['home'], 1000, 30)                # go to home position
+
+    move_robot(robot, ['wave_down', 'wave_up'], loop=2) # wave up and down 3 times
+
+    move_robot(robot, ['home'], 1000, 30)                # go to home position
+
+def spin_and_wave(robot):
+    move_robot(robot, ['squat_down', 'quarter_up', 'mostly_up', 'all_up'])      # spin robot up
+    move_robot(robot, ['all_up', 'mostly_up', 'quarter_up', 'squat_down'])      # spin robot down
+
+    move_robot(robot, ['squat_wave_left', 'squat_wave_right'], loop=2)          # robot waves from squat
+
+    move_robot(robot, ['home'], 1000, j_speed=30)  
+
 #---------main program----------
 
 robot = start_robodk(RDK, RUNMODE_RUN_ROBOT, 'refPoint')
@@ -125,7 +137,8 @@ if not mqtt_err:
     print(f'started listening program for {robot_name}')
     
     # put robot code here
-    move_robot(robot, ['squat_down'], j_speed=50)
+    wave(robot)
+    spin_and_wave(robot)
 
     publishMessage('synchronize', 'ready')
 
@@ -133,11 +146,11 @@ if not mqtt_err:
         # wait for other robot to be done
         pass
 
- 
-    print(f'now starting synchronized swimming program')
-
     # synchronized robot code here
-    move_robot(robot, ['wave_down', 'wave_up'])
+    move_robot(robot, ['home'])
+    move_robot(robot, ['wave_down', 'wave_up'], loop=2)
+    move_robot(robot, ['sync_out', 'sync_up'])
+    move_robot(robot, ['home'])
     
     client.loop_stop()
     client.disconnect()
