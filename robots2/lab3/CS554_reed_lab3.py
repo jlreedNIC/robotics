@@ -1,7 +1,16 @@
+# ---------------------------
+# @file     CS554_reed_lab3.py
+# @author   Jordan Reed
+# @date     9/26/23
+# @brief    Program to move dice around using CRX10's and newly developed
+#           Python API.
+#
+# @class    CS 554 - Lab #3
+# ---------------------------
+
 import sys
 
 try:
-    
     from robot_controller import robot
     print('import worked as is')
 except Exception as e:
@@ -11,7 +20,13 @@ except Exception as e:
 # initialize robot
 ip_address = '129.101.98.214' # Bill
 # ip_address = '129.101.98.215' # DJ
-myrobot = robot(ip_address)
+
+try:
+    myrobot = robot(ip_address)
+except Exception as e:
+    print('Error connecting to robot.')
+    print(e)
+    exit()
 
 # positions in joint
 home = [0,0,0,0,0,0]
@@ -27,7 +42,8 @@ pick_up_conveyor_end = [-63.82355499267578,6.01451301574707,-42.89634704589844,-
 # ----------
 
 # initialize robot
-myrobot.conveyor('stop')
+print('Initializing robot...')
+myrobot.conveyor('stop') # make sure conveyor is not running
 myrobot.onRobot_gripper_close(110, 10) # make sure gripper is open
 myrobot.set_pose(home)
 myrobot.start_robot()
@@ -56,7 +72,7 @@ myrobot.start_robot()
 myrobot.set_pose(drop_conveyor_start)
 myrobot.start_robot()
 
-# let go of gripper
+# open gripper
 myrobot.onRobot_gripper_close(110, 10)
 
 # hover above conveyor
@@ -64,10 +80,12 @@ myrobot.set_pose(approach_conveyor_start)
 myrobot.start_robot()
 
 # move robot out of way
+# done in non-blocking manner so conveyor will start at same time
 myrobot.set_pose(approach_conveyor_end)
 myrobot.start_robot(blocking=False)
 
 # conveyor loop
+print('Starting conveyor...')
 myrobot.conveyor('forward')
 while(myrobot.conveyor_proximity_sensor('left') == 0):
     pass
@@ -92,7 +110,7 @@ myrobot.start_robot()
 myrobot.set_pose(pick_up_di_home)
 myrobot.start_robot()
 
-# let go of di
+# let go of di and open gripper
 myrobot.onRobot_gripper_close(110, 10)
 
 # hover above di
